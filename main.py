@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Инструмент визуализации графа зависимостей для менеджера пакетов
-Минимальный прототип с конфигурацией - Этап 1
+Этап 2: Сбор данных
 """
 
 import sys
@@ -12,18 +12,21 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from cli import CommandLineInterface
 from config import Config
-from errors import DependencyVisualizerError, ValidationError, ConfigError
+from data_collector import NPMDataCollector
+from errors import DependencyVisualizerError, ValidationError, ConfigError, PackageNotFoundError, NetworkError
 
 
 class DependencyVisualizer:
     def __init__(self):
         self.cli = CommandLineInterface()
         self.config = None
+        self.data_collector = None
 
     def run(self):
         """Основной метод запуска приложения"""
         try:
             print("=== Инструмент визуализации графа зависимостей ===")
+            print("Этап 2: Сбор данных")
             print("Загрузка конфигурации...")
 
             # Парсинг аргументов командной строки
@@ -36,10 +39,13 @@ class DependencyVisualizer:
             self._print_configuration()
             print("=" * 50)
 
-            # Демонстрация работы приложения
-            self._demonstrate_workflow()
+            # Инициализация сборщика данных
+            self.data_collector = NPMDataCollector(self.config.repository_url)
 
-            print("\nПриложение успешно завершило работу!")
+            # Получение и вывод зависимостей
+            self._collect_and_display_dependencies()
+
+            print("\n✅ Этап 2 завершен успешно!")
 
         except DependencyVisualizerError as e:
             print(f"\n❌ Ошибка: {e}", file=sys.stderr)
@@ -57,7 +63,7 @@ class DependencyVisualizer:
             "Имя анализируемого пакета": self.config.package_name,
             "URL репозитория/путь к файлу": self.config.repository_url,
             "Режим тестового репозитория": "Включен" if self.config.test_repo_mode else "Отключен",
-            "Версия пакета": self.config.package_version or "Не указана",
+            "Версия пакета": self.config.package_version or "Не указана (будет использована последняя)",
             "Имя файла с изображением": self.config.output_filename,
             "Подстрока для фильтрации": self.config.filter_substring or "Не указана"
         }
@@ -65,26 +71,56 @@ class DependencyVisualizer:
         for key, value in config_dict.items():
             print(f"{key}: {value}")
 
-    def _demonstrate_workflow(self):
-        """Демонстрация рабочего процесса"""
-        print("\n🔧 Демонстрация рабочего процесса:")
+    def _collect_and_display_dependencies(self):
+        """Сбор и отображение зависимостей"""
+        print(f"\n📦 Получение зависимостей для пакета '{self.config.package_name}'...")
 
-        # Симуляция анализа зависимостей
-        print(f"1. Анализ пакета '{self.config.package_name}'...")
+        try:
+            # Получаем зависимости
+            dependencies = self.data_collector.get_package_dependencies(
+                self.config.package_name,
+                self.config.package_version
+            )
 
-        if self.config.test_repo_mode:
-            print("2. Работа в режиме тестового репозитория...")
-        else:
-            print("2. Работа с основным репозиторием...")
+            # Применяем фильтр если указан
+            if self.config.filter_substring:
+                dependencies = self.data_collector.filter_dependencies(
+                    dependencies,
+                    self.config.filter_substring
+                )
 
-        if self.config.package_version:
-            print(f"3. Используется версия: {self.config.package_version}")
+            # Выводим результат
+            self._display_dependencies(dependencies)
 
-        if self.config.filter_substring:
-            print(f"4. Применен фильтр: '{self.config.filter_substring}'")
+        except PackageNotFoundError:
+            print(f"\n❌ Пакет '{self.config.package_name}' не найден в репозитории")
+            raise
+        except NetworkError as e:
+            print(f"\n❌ Ошибка сети: {e}")
+            raise
+        except PackageDataError as e:
+            print(f"\n❌ Ошибка данных пакета: {e}")
+            raise
 
-        print(f"5. Подготовка к генерации файла: {self.config.output_filename}")
-        print("6. [Здесь будет построение графа зависимостей]")
+    def _display_dependencies(self, dependencies):
+        """Отображает зависимости в читаемом формате"""
+        if not dependencies:
+            print(f"\n📭 Пакет '{self.config.package_name}' не имеет зависимостей")
+            return
+
+        print(f"\n🎯 ПРЯМЫЕ ЗАВИСИМОСТИ ПАКЕТА '{self.config.package_name}':")
+        print("=" * 60)
+
+        for i, (package, version) in enumerate(dependencies.items(), 1):
+            print(f"{i:2d}. {package}: {version}")
+
+        print("=" * 60)
+        print(f"Всего зависимостей: {len(dependencies)}")
+
+        # Дополнительная статистика
+        if dependencies:
+            unique_packages = set(dependencies.keys())
+            print(f"Уникальных пакетов: {len(unique_packages)}")
 
 
 def main():

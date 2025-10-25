@@ -17,3 +17,11 @@ class RepositoryError(DependencyVisualizerError):
 class ValidationError(DependencyVisualizerError):
     """Ошибка валидации параметров"""
     pass
+
+class NetworkError(DependencyVisualizerError):
+    """Ошибка сетевого запроса"""
+    pass
+
+class PackageDataError(DependencyVisualizerError):
+    """Ошибка получения данных о пакете"""
+    pass
