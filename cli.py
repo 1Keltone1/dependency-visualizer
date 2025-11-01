@@ -15,9 +15,14 @@ class CommandLineInterface:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Примеры использования:
+  # Основной режим - построение графа зависимостей
   python main.py --package requests --repo-url https://pypi.org --version 2.25.1
+
+  # Режим обратных зависимостей
+  python main.py --package D --repo-url test_graph.json --test-mode --reverse-deps --root-package A
+
+  # Тестовый режим с фильтрацией
   python main.py --package numpy --repo-url ./test_repo --test-mode --output deps.svg
-  python main.py --package django --repo-url /path/to/repo --filter "security"
             """
         )
 
@@ -70,6 +75,22 @@ class CommandLineInterface:
             help='Подстрока для фильтрации пакетов'
         )
 
+        # Новые параметры для этапа 4
+        parser.add_argument(
+            '--reverse-deps',
+            '--reverse-dependencies',
+            dest='reverse_dependencies',
+            action='store_true',
+            default=False,
+            help='Режим поиска обратных зависимостей (только для этапа 4)'
+        )
+
+        parser.add_argument(
+            '--root-package',
+            dest='root_package',
+            help='Корневой пакет для начала обхода при поиске обратных зависимостей'
+        )
+
         return parser
 
     def parse_arguments(self):
@@ -84,6 +105,8 @@ class CommandLineInterface:
             config.package_version = args.package_version
             config.output_filename = args.output_filename
             config.filter_substring = args.filter_substring
+            config.reverse_dependencies = args.reverse_dependencies
+            config.root_package = args.root_package
 
             # Валидация конфигурации
             config.validate()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Инструмент визуализации графа зависимостей для менеджера пакетов
-Этап 3: Основные операции с графом
+Этап 4: Дополнительные операции с графом
 """
 
 import sys
@@ -29,7 +29,7 @@ class DependencyVisualizer:
         """Основной метод запуска приложения"""
         try:
             print("=== Инструмент визуализации графа зависимостей ===")
-            print("Этап 3: Основные операции с графом")
+            print("Этап 4: Дополнительные операции с графом")
             print("Загрузка конфигурации...")
 
             # Парсинг аргументов командной строки
@@ -48,13 +48,15 @@ class DependencyVisualizer:
                 self.config.test_repo_mode
             )
 
-            # Построение графа зависимостей
-            dependency_graph = self._build_dependency_graph()
+            # Выполнение операций в зависимости от режима
+            if self.config.reverse_dependencies:
+                self._find_and_display_reverse_dependencies()
+            else:
+                # Стандартный режим - построение графа зависимостей
+                dependency_graph = self._build_dependency_graph()
+                self._display_graph_results(dependency_graph)
 
-            # Вывод результатов
-            self._display_graph_results(dependency_graph)
-
-            print("\n Этап 3 завершен успешно!")
+            print("\n Этап 4 завершен успешно!")
 
         except (PackageNotFoundError, PackageDataError, NetworkError, CyclicDependencyError) as e:
             print(f"\n Ошибка: {e}", file=sys.stderr)
@@ -72,8 +74,10 @@ class DependencyVisualizer:
     def _print_configuration(self):
         """Вывод конфигурации в формате ключ-значение"""
         repo_type = "Тестовый репозиторий" if self.config.test_repo_mode else "NPM репозиторий"
+        mode = "Обратные зависимости" if self.config.reverse_dependencies else "Прямые зависимости"
 
         config_dict = {
+            "Режим работы": mode,
             "Имя анализируемого пакета": self.config.package_name,
             "Тип репозитория": repo_type,
             "URL репозитория/путь к файлу": self.config.repository_url,
@@ -81,6 +85,9 @@ class DependencyVisualizer:
             "Имя файла с изображением": self.config.output_filename,
             "Подстрока для фильтрации": self.config.filter_substring or "Не указана"
         }
+
+        if self.config.reverse_dependencies:
+            config_dict["Корневой пакет для обхода"] = self.config.root_package
 
         for key, value in config_dict.items():
             print(f"{key}: {value}")
@@ -102,6 +109,26 @@ class DependencyVisualizer:
 
         return graph
 
+    def _find_and_display_reverse_dependencies(self):
+        """Находит и отображает обратные зависимости"""
+        print(f"\n Поиск обратных зависимостей для пакета '{self.config.package_name}'...")
+        print(f" Начало обхода от корневого пакета '{self.config.root_package}'")
+
+        # Инициализация построителя графа
+        self.graph_builder = DependencyGraphBuilder(self.data_collector)
+
+        # Поиск обратных зависимостей
+        reverse_deps = self.graph_builder.find_reverse_dependencies(
+            target_package=self.config.package_name,
+            root_package=self.config.root_package,
+            root_version=self.config.package_version,
+            filter_substring=self.config.filter_substring,
+            max_depth=10
+        )
+
+        # Отображение результатов
+        self._display_reverse_dependencies(reverse_deps)
+
     def _display_graph_results(self, graph):
         """Отображает результаты построения графа"""
         if not graph:
@@ -121,16 +148,31 @@ class DependencyVisualizer:
                 for dep, version in dependencies.items():
                     print(f"   └── {dep}: {version}")
             elif "ERROR" in dependencies:
-                print(f"   └── Ошибка: {dependencies['ERROR']}")
+                print(f"   └──  Ошибка: {dependencies['ERROR']}")
             else:
                 print("   └── (нет зависимостей)")
 
         print("\n" + "=" * 70)
-        print("СТАТИСТИКА ГРАФА:")
+        print(" СТАТИСТИКА ГРАФА:")
         print(f"   Всего пакетов: {stats['total_packages']}")
         print(f"   Всего зависимостей: {stats['total_dependencies']}")
         print(f"   Максимальная глубина: {stats['max_depth']}")
         print(f"   Обнаружены циклы: {'Да' if stats['has_cycles'] else 'Нет'}")
+
+    def _display_reverse_dependencies(self, reverse_deps):
+        """Отображает обратные зависимости"""
+        if not reverse_deps:
+            print(f"\n Не найдено пакетов, зависящих от '{self.config.package_name}'")
+            return
+
+        print(f"\n ПАКЕТЫ, ЗАВИСЯЩИЕ ОТ '{self.config.package_name}':")
+        print("=" * 60)
+
+        for i, package in enumerate(sorted(reverse_deps), 1):
+            print(f"{i:2d}. {package}")
+
+        print("=" * 60)
+        print(f"Всего обратных зависимостей: {len(reverse_deps)}")
 
 
 def main():

@@ -50,7 +50,7 @@ class DependencyGraphBuilder:
                     current_package, current_version
                 )
 
-                # Применяем фильтр
+                # Применяем фильтр (исключаем пакеты, содержащие подстроку)
                 if filter_substring:
                     dependencies = self.data_collector.filter_dependencies(
                         dependencies, filter_substring
@@ -77,6 +77,39 @@ class DependencyGraphBuilder:
                 continue
 
         return self.graph
+
+    def find_reverse_dependencies(self, target_package, root_package, root_version=None, filter_substring=None,
+                                  max_depth=10):
+        """
+        Находит обратные зависимости для заданного пакета
+
+        Args:
+            target_package: Пакет, для которого ищем обратные зависимости
+            root_package: Корневой пакет для начала обхода
+            root_version: Версия корневого пакета
+            filter_substring: Подстрока для фильтрации пакетов
+            max_depth: Максимальная глубина обхода
+
+        Returns:
+            list: Список пакетов, которые зависят от target_package
+        """
+        # Сначала строим полный граф зависимостей
+        full_graph = self.build_dependency_graph(
+            root_package, root_version, filter_substring, max_depth
+        )
+
+        # Ищем обратные зависимости
+        reverse_deps = []
+
+        for package, dependencies in full_graph.items():
+            # Проверяем каждый пакет в графе на наличие зависимости от target_package
+            for dep_package in dependencies.keys():
+                dep_name = dep_package.split('@')[0] if '@' in dep_package else dep_package
+                if dep_name == target_package:
+                    reverse_deps.append(package)
+                    break
+
+        return reverse_deps
 
     def _has_cycle(self, current_package, next_package):
         """

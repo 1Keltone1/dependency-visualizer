@@ -13,6 +13,8 @@ class Config:
         self.package_version = None
         self.output_filename = "dependency_graph.png"
         self.filter_substring = None
+        self.reverse_dependencies = False  # Новый параметр для этапа 4
+        self.root_package = None  # Новый параметр для этапа 4
 
     def validate(self):
         """Валидация конфигурации"""
@@ -38,15 +40,26 @@ class Config:
             if not self.output_filename.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):
                 errors.append("Имя файла должно иметь расширение изображения (.png, .jpg, .jpeg, .svg)")
 
+        # Валидация для режима обратных зависимостей
+        if self.reverse_dependencies and not self.root_package:
+            errors.append("Для режима обратных зависимостей необходимо указать --root-package")
+
         if errors:
             raise ValidationError("\n".join(errors))
 
     def __str__(self):
         """Строковое представление конфигурации"""
-        return f"""Конфигурация приложения:
+        config_str = f"""Конфигурация приложения:
 - Имя анализируемого пакета: {self.package_name}
 - URL репозитория/путь к файлу: {self.repository_url}
 - Режим тестового репозитория: {self.test_repo_mode}
 - Версия пакета: {self.package_version}
 - Имя файла с изображением: {self.output_filename}
 - Подстрока для фильтрации: {self.filter_substring}"""
+
+        # Добавляем параметры этапа 4
+        if self.reverse_dependencies:
+            config_str += f"\n- Режим обратных зависимостей: Включен"
+            config_str += f"\n- Корневой пакет для обхода: {self.root_package}"
+
+        return config_str
