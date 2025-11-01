@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Инструмент визуализации графа зависимостей для менеджера пакетов
-Этап 4: Дополнительные операции с графом
+Этап 5: Визуализация графа зависимостей
 """
 
 import sys
@@ -14,6 +14,7 @@ from cli import CommandLineInterface
 from config import Config
 from data_collector import NPMDataCollector
 from graph_builder import DependencyGraphBuilder
+from visualizer import GraphVisualizer
 from errors import (DependencyVisualizerError, ValidationError, ConfigError,
                     PackageNotFoundError, NetworkError, PackageDataError, CyclicDependencyError)
 
@@ -24,12 +25,13 @@ class DependencyVisualizer:
         self.config = None
         self.data_collector = None
         self.graph_builder = None
+        self.visualizer = None
 
     def run(self):
         """Основной метод запуска приложения"""
         try:
             print("=== Инструмент визуализации графа зависимостей ===")
-            print("Этап 4: Дополнительные операции с графом")
+            print("Этап 5: Визуализация графа зависимостей")
             print("Загрузка конфигурации...")
 
             # Парсинг аргументов командной строки
@@ -42,21 +44,23 @@ class DependencyVisualizer:
             self._print_configuration()
             print("=" * 50)
 
-            # Инициализация сборщика данных
+            # Инициализация компонентов
             self.data_collector = NPMDataCollector(
                 self.config.repository_url,
                 self.config.test_repo_mode
             )
+            self.visualizer = GraphVisualizer()
 
             # Выполнение операций в зависимости от режима
             if self.config.reverse_dependencies:
                 self._find_and_display_reverse_dependencies()
             else:
-                # Стандартный режим - построение графа зависимостей
+                # Стандартный режим - построение и визуализация графа
                 dependency_graph = self._build_dependency_graph()
                 self._display_graph_results(dependency_graph)
+                self._visualize_graph(dependency_graph)
 
-            print("\n Этап 4 завершен успешно!")
+            print("\n Этап 5 завершен успешно!")
 
         except (PackageNotFoundError, PackageDataError, NetworkError, CyclicDependencyError) as e:
             print(f"\n Ошибка: {e}", file=sys.stderr)
@@ -173,6 +177,49 @@ class DependencyVisualizer:
 
         print("=" * 60)
         print(f"Всего обратных зависимостей: {len(reverse_deps)}")
+
+    def _visualize_graph(self, graph):
+        """Визуализирует граф зависимостей"""
+        if not graph:
+            print(f"\n Невозможно визуализировать пустой граф")
+            return
+
+        print(f"\n ВИЗУАЛИЗАЦИЯ ГРАФА:")
+        print("=" * 50)
+
+        try:
+            # Генерируем PlantUML код
+            plantuml_file = self.config.output_filename.replace('.svg', '.puml')
+            plantuml_path = self.visualizer.save_plantuml_code(
+                graph,
+                plantuml_file,
+                f"Зависимости пакета {self.config.package_name}"
+            )
+            print(f" Код PlantUML сохранен: {plantuml_path}")
+
+            # Генерируем SVG
+            svg_path = self.visualizer.generate_svg(
+                graph,
+                self.config.output_filename,
+                f"Зависимости пакета {self.config.package_name}"
+            )
+            print(f" SVG изображение сохранено: {svg_path}")
+
+            # Сравнение с npm (если это npm пакет и не тестовый режим)
+            if not self.config.test_repo_mode and not self.config.repository_url.startswith('http'):
+                print(f"\n СРАВНЕНИЕ С NPM:")
+                comparison = self.visualizer.compare_with_npm(
+                    self.config.package_name,
+                    self.config.package_version
+                )
+                if "error" in comparison:
+                    print(f"    {comparison['error']}")
+                else:
+                    print(f"   Результаты сравнения доступны")
+
+        except Exception as e:
+            print(f"Ошибка при визуализации: {e}")
+            print("Установите PlantUML для локальной генерации или проверьте подключение к интернету")
 
 
 def main():
