@@ -24,10 +24,15 @@ class Config:
         if not self.repository_url:
             errors.append("URL репозитория или путь к файлу обязателен")
         else:
-            # Проверяем, является ли repository_url URL или путем к файлу
-            parsed_url = urlparse(self.repository_url)
-            if not (parsed_url.scheme in ['http', 'https', 'file'] or os.path.exists(self.repository_url)):
-                errors.append(f"Некорректный URL или путь к файлу: {self.repository_url}")
+            if self.test_repo_mode:
+                # В тестовом режиме проверяем существование файла
+                if not os.path.exists(self.repository_url):
+                    errors.append(f"Файл тестового репозитория не найден: {self.repository_url}")
+            else:
+                # В обычном режиме проверяем URL
+                parsed_url = urlparse(self.repository_url)
+                if not (parsed_url.scheme in ['http', 'https', 'file'] or os.path.exists(self.repository_url)):
+                    errors.append(f"Некорректный URL или путь к файлу: {self.repository_url}")
 
         if self.output_filename:
             if not self.output_filename.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):

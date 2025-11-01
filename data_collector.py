@@ -8,12 +8,16 @@ from errors import NetworkError, PackageDataError, PackageNotFoundError
 class NPMDataCollector:
     """Сборщик данных о зависимостях npm пакетов"""
 
-    def __init__(self, repository_url):
+    def __init__(self, repository_url, test_mode=False):
         self.repository_url = repository_url.rstrip('/')
+        self.test_mode = test_mode
         self.base_url = self._get_base_url()
 
     def _get_base_url(self):
         """Определяет базовый URL для API npm репозитория"""
+        if self.test_mode:
+            return self.repository_url
+
         if self.repository_url == 'https://registry.npmjs.org':
             return 'https://registry.npmjs.org'
         elif 'registry.npmjs.org' in self.repository_url:
@@ -25,24 +29,18 @@ class NPMDataCollector:
     def get_package_dependencies(self, package_name, version=None):
         """
         Получает прямые зависимости пакета
-
-        Args:
-            package_name: Имя пакета
-            version: Версия пакета (опционально)
-
-        Returns:
-            dict: Словарь с зависимостями {имя_пакета: версия}
         """
+        if self.test_mode:
+            # В тестовом режиме используем TestRepository
+            from test_repository import TestRepository
+            test_repo = TestRepository(self.repository_url)
+            return test_repo.get_package_dependencies(package_name, version)
+
         try:
-            # Получаем информацию о пакете
+            # Оригинальная логика для реального репозитория
             package_data = self._fetch_package_data(package_name)
-
-            # Определяем нужную версию
             target_version = self._resolve_version(package_data, version)
-
-            # Извлекаем зависимости
             dependencies = self._extract_dependencies(package_data, target_version)
-
             return dependencies
 
         except urllib.error.HTTPError as e:
@@ -71,6 +69,7 @@ class NPMDataCollector:
                 raise PackageNotFoundError(f"Пакет '{package_name}' не найден")
             raise
 
+    # Остальные методы остаются без изменений...
     def _resolve_version(self, package_data, version_spec=None):
         """Определяет конкретную версию пакета"""
         versions = package_data.get('versions', {})
@@ -79,55 +78,42 @@ class NPMDataCollector:
             raise PackageDataError("Пакет не имеет версий")
 
         if version_spec:
-            # Ищем точное соответствие версии
             if version_spec in versions:
                 return version_spec
             else:
-                # Пытаемся найти подходящую версию по семантическому versioning
                 matching_version = self._find_matching_version(versions, version_spec)
                 if not matching_version:
                     raise PackageDataError(
                         f"Версия '{version_spec}' не найдена для пакета '{package_data.get('name', 'unknown')}'. Доступные версии: {', '.join(list(versions.keys())[:5])}...")
                 return matching_version
         else:
-            # Используем latest версию
             dist_tags = package_data.get('dist-tags', {})
             latest_version = dist_tags.get('latest')
             if latest_version and latest_version in versions:
                 return latest_version
             else:
-                # Берем последнюю версию по дате
                 return sorted(versions.keys(), key=self._parse_version)[-1]
 
     def _find_matching_version(self, versions, version_spec):
         """Находит версию, соответствующую спецификации"""
         available_versions = list(versions.keys())
 
-        # Простая логика для демонстрации
-        # В реальной системе нужно использовать семантический versioning
-
-        # Проверяем точное совпадение
         if version_spec in available_versions:
             return version_spec
 
-        # Проверяем префикс (например, "1.0" для "1.0.0")
         for version in available_versions:
             if version.startswith(version_spec):
                 return version
 
-        # Если ничего не нашли, возвращаем None
         return None
 
     def _parse_version(self, version_str):
         """Парсит версию для сравнения"""
-        # Упрощенный парсинг версий
         version_str = version_str.strip('v')
         parts = version_str.split('.')
 
-        # Преобразуем части версии в числа
         numeric_parts = []
         for part in parts:
-            # Убираем нечисловые суффиксы
             numeric_part = ''
             for char in part:
                 if char.isdigit():
@@ -136,7 +122,6 @@ class NPMDataCollector:
                     break
             numeric_parts.append(int(numeric_part) if numeric_part else 0)
 
-        # Дополняем нулями до 3 частей
         while len(numeric_parts) < 3:
             numeric_parts.append(0)
 
@@ -148,15 +133,12 @@ class NPMDataCollector:
 
         dependencies = {}
 
-        # Основные зависимости
         deps = version_data.get('dependencies', {})
         dependencies.update(deps)
 
-        # Dev зависимости (опционально)
         dev_deps = version_data.get('devDependencies', {})
         dependencies.update(dev_deps)
 
-        # Peer зависимости (опционально)
         peer_deps = version_data.get('peerDependencies', {})
         dependencies.update(peer_deps)
 
@@ -169,7 +151,7 @@ class NPMDataCollector:
 
         filtered = {}
         for package, version in dependencies.items():
-            if filter_substring.lower() in package.lower():
+            if filter_substring.lower() not in package.lower():
                 filtered[package] = version
 
         return filtered

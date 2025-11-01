@@ -25,3 +25,11 @@ class NetworkError(DependencyVisualizerError):
 class PackageDataError(DependencyVisualizerError):
     """Ошибка получения данных о пакете"""
     pass
+
+class GraphError(DependencyVisualizerError):
+    """Ошибка построения графа"""
+    pass
+
+class CyclicDependencyError(GraphError):
+    """Обнаружены циклические зависимости"""
+    pass
