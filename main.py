@@ -13,7 +13,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from cli import CommandLineInterface
 from config import Config
 from data_collector import NPMDataCollector
-from errors import DependencyVisualizerError, ValidationError, ConfigError, PackageNotFoundError, NetworkError
+from errors import (DependencyVisualizerError, ValidationError, ConfigError,
+                    PackageNotFoundError, NetworkError, PackageDataError)
 
 
 class DependencyVisualizer:
@@ -47,8 +48,13 @@ class DependencyVisualizer:
 
             print("\n✅ Этап 2 завершен успешно!")
 
-        except DependencyVisualizerError as e:
+        except (PackageNotFoundError, PackageDataError, NetworkError) as e:
+            # Конкретные ошибки связанные с данными пакетов и сетью
             print(f"\n❌ Ошибка: {e}", file=sys.stderr)
+            sys.exit(1)
+        except DependencyVisualizerError as e:
+            # Общие ошибки приложения
+            print(f"\n❌ Ошибка приложения: {e}", file=sys.stderr)
             sys.exit(1)
         except KeyboardInterrupt:
             print("\n\nПрервано пользователем", file=sys.stderr)
@@ -75,32 +81,21 @@ class DependencyVisualizer:
         """Сбор и отображение зависимостей"""
         print(f"\n📦 Получение зависимостей для пакета '{self.config.package_name}'...")
 
-        try:
-            # Получаем зависимости
-            dependencies = self.data_collector.get_package_dependencies(
-                self.config.package_name,
-                self.config.package_version
+        # Получаем зависимости (ошибки будут обработаны в run())
+        dependencies = self.data_collector.get_package_dependencies(
+            self.config.package_name,
+            self.config.package_version
+        )
+
+        # Применяем фильтр если указан
+        if self.config.filter_substring:
+            dependencies = self.data_collector.filter_dependencies(
+                dependencies,
+                self.config.filter_substring
             )
 
-            # Применяем фильтр если указан
-            if self.config.filter_substring:
-                dependencies = self.data_collector.filter_dependencies(
-                    dependencies,
-                    self.config.filter_substring
-                )
-
-            # Выводим результат
-            self._display_dependencies(dependencies)
-
-        except PackageNotFoundError:
-            print(f"\n❌ Пакет '{self.config.package_name}' не найден в репозитории")
-            raise
-        except NetworkError as e:
-            print(f"\n❌ Ошибка сети: {e}")
-            raise
-        except PackageDataError as e:
-            print(f"\n❌ Ошибка данных пакета: {e}")
-            raise
+        # Выводим результат
+        self._display_dependencies(dependencies)
 
     def _display_dependencies(self, dependencies):
         """Отображает зависимости в читаемом формате"""

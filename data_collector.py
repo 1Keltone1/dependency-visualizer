@@ -84,7 +84,11 @@ class NPMDataCollector:
                 return version_spec
             else:
                 # Пытаемся найти подходящую версию по семантическому versioning
-                return self._find_matching_version(versions, version_spec)
+                matching_version = self._find_matching_version(versions, version_spec)
+                if not matching_version:
+                    raise PackageDataError(
+                        f"Версия '{version_spec}' не найдена для пакета '{package_data.get('name', 'unknown')}'. Доступные версии: {', '.join(list(versions.keys())[:5])}...")
+                return matching_version
         else:
             # Используем latest версию
             dist_tags = package_data.get('dist-tags', {})
@@ -111,11 +115,8 @@ class NPMDataCollector:
             if version.startswith(version_spec):
                 return version
 
-        # Если ничего не нашли, берем первую доступную версию
-        if available_versions:
-            return available_versions[-1]
-
-        raise PackageDataError(f"Не найдена версия, соответствующая '{version_spec}'")
+        # Если ничего не нашли, возвращаем None
+        return None
 
     def _parse_version(self, version_str):
         """Парсит версию для сравнения"""
