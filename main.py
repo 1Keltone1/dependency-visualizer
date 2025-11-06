@@ -14,7 +14,7 @@ from cli import CommandLineInterface
 from config import Config
 from data_collector import NPMDataCollector
 from graph_builder import DependencyGraphBuilder
-from visualizer import GraphVisualizer
+from simple_visualizer import SimpleGraphVisualizer
 from errors import (DependencyVisualizerError, ValidationError, ConfigError,
                     PackageNotFoundError, NetworkError, PackageDataError, CyclicDependencyError)
 
@@ -31,7 +31,6 @@ class DependencyVisualizer:
         """Основной метод запуска приложения"""
         try:
             print("=== Инструмент визуализации графа зависимостей ===")
-            print("Этап 5: Визуализация графа зависимостей")
             print("Загрузка конфигурации...")
 
             # Парсинг аргументов командной строки
@@ -49,7 +48,7 @@ class DependencyVisualizer:
                 self.config.repository_url,
                 self.config.test_repo_mode
             )
-            self.visualizer = GraphVisualizer()
+            self.visualizer = SimpleGraphVisualizer()
 
             # Выполнение операций в зависимости от режима
             if self.config.reverse_dependencies:
@@ -60,7 +59,7 @@ class DependencyVisualizer:
                 self._display_graph_results(dependency_graph)
                 self._visualize_graph(dependency_graph)
 
-            print("\n Этап 5 завершен успешно!")
+            print("\n Программа завершена успешно!")
 
         except (PackageNotFoundError, PackageDataError, NetworkError, CyclicDependencyError) as e:
             print(f"\n Ошибка: {e}", file=sys.stderr)
@@ -187,39 +186,30 @@ class DependencyVisualizer:
         print(f"\n ВИЗУАЛИЗАЦИЯ ГРАФА:")
         print("=" * 50)
 
-        try:
-            # Генерируем PlantUML код
-            plantuml_file = self.config.output_filename.replace('.svg', '.puml')
-            plantuml_path = self.visualizer.save_plantuml_code(
-                graph,
-                plantuml_file,
-                f"Зависимости пакета {self.config.package_name}"
-            )
-            print(f" Код PlantUML сохранен: {plantuml_path}")
+        # Всегда создаем текстовую диаграмму
+        text_file = self.config.output_filename.replace('.svg', '.txt')
+        text_path = self.visualizer.save_text_diagram(
+            graph,
+            text_file,
+            f"Зависимости пакета {self.config.package_name}"
+        )
+        print(f"Текстовая диаграмма сохранена: {text_path}")
 
-            # Генерируем SVG
-            svg_path = self.visualizer.generate_svg(
-                graph,
-                self.config.output_filename,
-                f"Зависимости пакета {self.config.package_name}"
-            )
-            print(f" SVG изображение сохранено: {svg_path}")
-
-            # Сравнение с npm (если это npm пакет и не тестовый режим)
-            if not self.config.test_repo_mode and not self.config.repository_url.startswith('http'):
-                print(f"\n СРАВНЕНИЕ С NPM:")
-                comparison = self.visualizer.compare_with_npm(
-                    self.config.package_name,
-                    self.config.package_version
+        # Пытаемся создать SVG только для небольших графов
+        if len(graph) <= 20:
+            try:
+                svg_path = self.visualizer.generate_svg(
+                    graph,
+                    self.config.output_filename,
+                    f"Зависимости пакета {self.config.package_name}"
                 )
-                if "error" in comparison:
-                    print(f"    {comparison['error']}")
-                else:
-                    print(f"   Результаты сравнения доступны")
-
-        except Exception as e:
-            print(f"Ошибка при визуализации: {e}")
-            print("Установите PlantUML для локальной генерации или проверьте подключение к интернету")
+                print(f"SVG изображение сохранено: {svg_path}")
+            except Exception as e:
+                print(f"Не удалось создать SVG: {e}")
+                print("SVG создается только для графов до 20 узлов")
+        else:
+            print(f"Граф слишком большой для SVG ({len(graph)} узлов)")
+            print("Просмотрите текстовую диаграмму для полной информации")
 
 
 def main():

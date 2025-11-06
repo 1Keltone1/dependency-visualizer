@@ -22,13 +22,7 @@ class TestRepository:
             raise PackageDataError(f"Ошибка чтения файла тестового репозитория: {e}")
 
     def get_package_dependencies(self, package_name, version=None):
-        """
-        Получает зависимости пакета из тестового репозитория
-
-        Args:
-            package_name: Имя пакета (большие латинские буквы)
-            version: Версия пакета (игнорируется в тестовом режиме)
-        """
+        """Получает зависимости пакета из тестового репозитория"""
         if package_name not in self.graph_data:
             raise PackageNotFoundError(f"Пакет '{package_name}' не найден в тестовом репозитории")
 

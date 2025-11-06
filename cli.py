@@ -16,13 +16,13 @@ class CommandLineInterface:
             epilog="""
 Примеры использования:
   # Основной режим - построение графа зависимостей
-  python main.py --package requests --repo-url https://pypi.org --version 2.25.1
+  python main.py --package react --repo-url https://registry.npmjs.org --version 18.2.0 --output graph.svg
 
   # Режим обратных зависимостей
   python main.py --package D --repo-url test_graph.json --test-mode --reverse-deps --root-package A
 
   # Тестовый режим с фильтрацией
-  python main.py --package numpy --repo-url ./test_repo --test-mode --output deps.svg
+  python main.py --package A --repo-url test_graph.json --test-mode --output deps.svg --filter "B"
             """
         )
 
@@ -64,8 +64,8 @@ class CommandLineInterface:
             '--output',
             '--output-filename',
             dest='output_filename',
-            default='dependency_graph.png',
-            help='Имя сгенерированного файла с изображением графа (по умолчанию: dependency_graph.png)'
+            default='dependency_graph.svg',
+            help='Имя сгенерированного файла с изображением графа (по умолчанию: dependency_graph.svg)'
         )
 
         parser.add_argument(
@@ -75,14 +75,14 @@ class CommandLineInterface:
             help='Подстрока для фильтрации пакетов'
         )
 
-        # Новые параметры для этапа 4
+        # Параметры для обратных зависимостей
         parser.add_argument(
             '--reverse-deps',
             '--reverse-dependencies',
             dest='reverse_dependencies',
             action='store_true',
             default=False,
-            help='Режим поиска обратных зависимостей (только для этапа 4)'
+            help='Режим поиска обратных зависимостей'
         )
 
         parser.add_argument(
@@ -116,5 +116,4 @@ class CommandLineInterface:
         except argparse.ArgumentError as e:
             raise ConfigError(f"Ошибка в аргументах командной строки: {e}")
         except SystemExit:
-            # argparse вызывает sys.exit() при --help или ошибках
             raise ConfigError("Прервано пользователем")

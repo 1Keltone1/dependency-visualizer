@@ -13,8 +13,8 @@ class Config:
         self.package_version = None
         self.output_filename = "dependency_graph.png"
         self.filter_substring = None
-        self.reverse_dependencies = False  # Новый параметр для этапа 4
-        self.root_package = None  # Новый параметр для этапа 4
+        self.reverse_dependencies = False
+        self.root_package = None
 
     def validate(self):
         """Валидация конфигурации"""
@@ -27,11 +27,9 @@ class Config:
             errors.append("URL репозитория или путь к файлу обязателен")
         else:
             if self.test_repo_mode:
-                # В тестовом режиме проверяем существование файла
                 if not os.path.exists(self.repository_url):
                     errors.append(f"Файл тестового репозитория не найден: {self.repository_url}")
             else:
-                # В обычном режиме проверяем URL
                 parsed_url = urlparse(self.repository_url)
                 if not (parsed_url.scheme in ['http', 'https', 'file'] or os.path.exists(self.repository_url)):
                     errors.append(f"Некорректный URL или путь к файлу: {self.repository_url}")
@@ -40,7 +38,6 @@ class Config:
             if not self.output_filename.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):
                 errors.append("Имя файла должно иметь расширение изображения (.png, .jpg, .jpeg, .svg)")
 
-        # Валидация для режима обратных зависимостей
         if self.reverse_dependencies and not self.root_package:
             errors.append("Для режима обратных зависимостей необходимо указать --root-package")
 
@@ -57,7 +54,6 @@ class Config:
 - Имя файла с изображением: {self.output_filename}
 - Подстрока для фильтрации: {self.filter_substring}"""
 
-        # Добавляем параметры этапа 4
         if self.reverse_dependencies:
             config_str += f"\n- Режим обратных зависимостей: Включен"
             config_str += f"\n- Корневой пакет для обхода: {self.root_package}"
