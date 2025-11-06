@@ -15,9 +15,14 @@ class CommandLineInterface:
             formatter_class=argparse.RawDescriptionHelpFormatter,
             epilog="""
 Примеры использования:
-  python main.py --package requests --repo-url https://pypi.org --version 2.25.1
-  python main.py --package numpy --repo-url ./test_repo --test-mode --output deps.svg
-  python main.py --package django --repo-url /path/to/repo --filter "security"
+  # Основной режим - построение графа зависимостей
+  python main.py --package react --repo-url https://registry.npmjs.org --version 18.2.0 --output graph.svg
+
+  # Режим обратных зависимостей
+  python main.py --package D --repo-url test_graph.json --test-mode --reverse-deps --root-package A
+
+  # Тестовый режим с фильтрацией
+  python main.py --package A --repo-url test_graph.json --test-mode --output deps.svg --filter "B"
             """
         )
 
@@ -59,8 +64,8 @@ class CommandLineInterface:
             '--output',
             '--output-filename',
             dest='output_filename',
-            default='dependency_graph.png',
-            help='Имя сгенерированного файла с изображением графа (по умолчанию: dependency_graph.png)'
+            default='dependency_graph.svg',
+            help='Имя сгенерированного файла с изображением графа (по умолчанию: dependency_graph.svg)'
         )
 
         parser.add_argument(
@@ -68,6 +73,22 @@ class CommandLineInterface:
             '--filter-substring',
             dest='filter_substring',
             help='Подстрока для фильтрации пакетов'
+        )
+
+        # Параметры для обратных зависимостей
+        parser.add_argument(
+            '--reverse-deps',
+            '--reverse-dependencies',
+            dest='reverse_dependencies',
+            action='store_true',
+            default=False,
+            help='Режим поиска обратных зависимостей'
+        )
+
+        parser.add_argument(
+            '--root-package',
+            dest='root_package',
+            help='Корневой пакет для начала обхода при поиске обратных зависимостей'
         )
 
         return parser
@@ -84,6 +105,8 @@ class CommandLineInterface:
             config.package_version = args.package_version
             config.output_filename = args.output_filename
             config.filter_substring = args.filter_substring
+            config.reverse_dependencies = args.reverse_dependencies
+            config.root_package = args.root_package
 
             # Валидация конфигурации
             config.validate()
@@ -93,5 +116,4 @@ class CommandLineInterface:
         except argparse.ArgumentError as e:
             raise ConfigError(f"Ошибка в аргументах командной строки: {e}")
         except SystemExit:
-            # argparse вызывает sys.exit() при --help или ошибках
             raise ConfigError("Прервано пользователем")

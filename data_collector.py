@@ -23,7 +23,6 @@ class NPMDataCollector:
         elif 'registry.npmjs.org' in self.repository_url:
             return self.repository_url
         else:
-            # Для кастомных репозиториев предполагаем структуру npm registry
             return urljoin(self.repository_url, '/')
 
     def get_package_dependencies(self, package_name, version=None):
@@ -31,13 +30,11 @@ class NPMDataCollector:
         Получает прямые зависимости пакета
         """
         if self.test_mode:
-            # В тестовом режиме используем TestRepository
             from test_repository import TestRepository
             test_repo = TestRepository(self.repository_url)
             return test_repo.get_package_dependencies(package_name, version)
 
         try:
-            # Оригинальная логика для реального репозитория
             package_data = self._fetch_package_data(package_name)
             target_version = self._resolve_version(package_data, version)
             dependencies = self._extract_dependencies(package_data, target_version)
@@ -69,7 +66,6 @@ class NPMDataCollector:
                 raise PackageNotFoundError(f"Пакет '{package_name}' не найден")
             raise
 
-    # Остальные методы остаются без изменений...
     def _resolve_version(self, package_data, version_spec=None):
         """Определяет конкретную версию пакета"""
         versions = package_data.get('versions', {})
