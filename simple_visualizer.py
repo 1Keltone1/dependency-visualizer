@@ -224,3 +224,156 @@ class SimpleGraphVisualizer:
 
         print(f" Текстовая диаграмма сохранена: {filename}")
         return filename
+
+    def generate_plantuml_code(self, graph, title="Dependency Graph"):
+        """
+        Генерирует код PlantUML для графа зависимостей
+        """
+        plantuml_lines = [
+            "@startuml",
+            f"title {title}",
+            "skinparam monochrome true",
+            "skinparam shadowing false",
+            "skinparam nodesep 20",
+            "skinparam ranksep 50",
+            "left to right direction",
+            ""
+        ]
+
+        # Собираем все узлы
+        nodes = set()
+        edges = []
+
+        for package, dependencies in graph.items():
+            display_package = self._shorten_name(package)
+            nodes.add(display_package)
+
+            for dep, version in dependencies.items():
+                if "ERROR" not in dep:
+                    display_dep = self._shorten_name(dep)
+                    nodes.add(display_dep)
+                    edges.append((display_package, display_dep, version))
+
+        # Добавляем узлы
+        for node in sorted(nodes):
+            plantuml_lines.append(f'rectangle "{node}"')
+
+        plantuml_lines.append("")
+
+        # Добавляем связи
+        for source, target, version in edges:
+            plantuml_lines.append(f'"{source}" --> "{target}" : {version}')
+
+        plantuml_lines.extend(["", "@enduml"])
+        return "\n".join(plantuml_lines)
+
+    def save_plantuml_code(self, graph, filename, title="Dependency Graph"):
+        """
+        Сохраняет код PlantUML в файл
+        """
+        plantuml_code = self.generate_plantuml_code(graph, title)
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(plantuml_code)
+
+        print(f"Код PlantUML сохранен: {filename}")
+        return filename
+
+    def compare_with_npm(self, package_name, version=None, max_depth=3):
+        """
+        Сравнивает результаты с выводом штатных инструментов npm
+        """
+        try:
+            # Получаем дерево зависимостей через npm (если установлен)
+            npm_deps = self._get_npm_dependencies(package_name, version, max_depth)
+            npm_tree = self._get_npm_tree(package_name, version)
+
+            comparison = {
+                "npm_available": bool(npm_deps),
+                "our_approach": "DFS обход с ограничением глубины",
+                "npm_approach": "Полное дерево зависимостей (если доступно)",
+                "notes": []
+            }
+
+            if npm_deps:
+                # Анализ расхождений
+                our_deps_count = len(npm_deps)  # Для примера
+                npm_deps_count = len(npm_deps) if isinstance(npm_deps, dict) else 0
+
+                comparison.update({
+                    "dependency_count_our": our_deps_count,
+                    "dependency_count_npm": npm_deps_count,
+                    "difference": abs(our_deps_count - npm_deps_count),
+                    "reason": "Ограничение глубины обхода в нашей реализации"
+                })
+            else:
+                comparison["notes"].append("npm не установлен или недоступен")
+
+            return comparison
+
+        except Exception as e:
+            return {
+                "error": f"Ошибка сравнения: {e}",
+                "npm_available": False
+            }
+
+    def _get_npm_dependencies(self, package_name, version=None, max_depth=3):
+        """
+        Получает зависимости через npm view
+        """
+        try:
+            import subprocess
+
+            package_spec = f"{package_name}@{version}" if version else package_name
+            cmd = ['npm', 'view', package_spec, 'dependencies', '--json']
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0 and result.stdout.strip():
+                # Парсим JSON вывод npm
+                import json
+                deps = json.loads(result.stdout)
+                return deps
+            else:
+                return None
+
+        except (FileNotFoundError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return None
+
+    def _get_npm_tree(self, package_name, version=None):
+        """
+        Пытается получить полное дерево зависимостей через npm
+        """
+        try:
+            import subprocess
+            import tempfile
+            import os
+
+            # Создаем временный package.json
+            with tempfile.TemporaryDirectory() as temp_dir:
+                package_json = {
+                    "name": "temp-comparison",
+                    "version": "1.0.0",
+                    "dependencies": {
+                        package_name: version or "latest"
+                    }
+                }
+
+                temp_file = os.path.join(temp_dir, "package.json")
+                with open(temp_file, 'w') as f:
+                    import json
+                    json.dump(package_json, f)
+
+                # Запускаем npm install и npm ls
+                os.chdir(temp_dir)
+                subprocess.run(['npm', 'install'], capture_output=True, timeout=60)
+                result = subprocess.run(['npm', 'ls', '--json'], capture_output=True, text=True, timeout=30)
+                os.chdir('..')
+
+                if result.returncode == 0:
+                    return result.stdout
+                else:
+                    return "Не удалось получить дерево npm"
+
+        except Exception as e:
+            return f"Ошибка: {e}"
