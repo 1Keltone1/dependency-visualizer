@@ -180,22 +180,35 @@ class DependencyVisualizer:
     def _visualize_graph(self, graph):
         """Визуализирует граф зависимостей"""
         if not graph:
-            print(f"\n Невозможно визуализировать пустой граф")
+            print(f"\n📭 Невозможно визуализировать пустой граф")
             return
 
         print(f"\n ВИЗУАЛИЗАЦИЯ ГРАФА:")
         print("=" * 50)
 
-        # Всегда создаем текстовую диаграмму
+        # 1. Сохраняем PlantUML код
+        plantuml_file = self.config.output_filename.replace('.svg', '.puml')
+        try:
+            plantuml_path = self.visualizer.save_plantuml_code(
+                graph,
+                plantuml_file,
+                f"Зависимости пакета {self.config.package_name}"
+            )
+            print(f" Код PlantUML сохранен: {plantuml_path}")
+            print(" Скопируйте содержимое в http://www.plantuml.com/plantuml для генерации")
+        except Exception as e:
+            print(f" Ошибка PlantUML: {e}")
+
+        # 2. Текстовая диаграмма
         text_file = self.config.output_filename.replace('.svg', '.txt')
         text_path = self.visualizer.save_text_diagram(
             graph,
             text_file,
             f"Зависимости пакета {self.config.package_name}"
         )
-        print(f"Текстовая диаграмма сохранена: {text_path}")
+        print(f" Текстовая диаграмма сохранена: {text_path}")
 
-        # Пытаемся создать SVG только для небольших графов
+        # 3. SVG визуализация
         if len(graph) <= 20:
             try:
                 svg_path = self.visualizer.generate_svg(
@@ -203,14 +216,31 @@ class DependencyVisualizer:
                     self.config.output_filename,
                     f"Зависимости пакета {self.config.package_name}"
                 )
-                print(f"SVG изображение сохранено: {svg_path}")
+                print(f" SVG изображение сохранено: {svg_path}")
             except Exception as e:
-                print(f"Не удалось создать SVG: {e}")
-                print("SVG создается только для графов до 20 узлов")
+                print(f" Не удалось создать SVG: {e}")
         else:
-            print(f"Граф слишком большой для SVG ({len(graph)} узлов)")
-            print("Просмотрите текстовую диаграмму для полной информации")
+            print(f" Граф слишком большой для SVG ({len(graph)} узлов)")
 
+        # 4. Сравнение с npm (только для реальных пакетов)
+        if not self.config.test_repo_mode:
+            print(f"\n СРАВНЕНИЕ С NPM:")
+            comparison = self.visualizer.compare_with_npm(
+                self.config.package_name,
+                self.config.package_version
+            )
+
+            if comparison.get("npm_available"):
+                print(f"    Наша реализация: {comparison.get('dependency_count_our', 'N/A')} зависимостей")
+                print(f"    NPM: {comparison.get('dependency_count_npm', 'N/A')} зависимостей")
+                print(f"    Разница: {comparison.get('difference', 'N/A')}")
+                print(f"    Причина: {comparison.get('reason', 'N/A')}")
+            else:
+                print("     npm не установлен или недоступен для сравнения")
+                print("    Установите Node.js и npm для полного сравнения")
+
+            for note in comparison.get("notes", []):
+                print(f"    {note}")
 
 def main():
     """Точка входа в приложение"""
