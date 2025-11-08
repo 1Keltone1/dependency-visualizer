@@ -1,147 +1,64 @@
 import json
 import urllib.request
 import urllib.error
-from urllib.parse import urljoin
 from errors import NetworkError, PackageDataError, PackageNotFoundError
 
 
 class NPMDataCollector:
-    """Сборщик данных о зависимостях npm пакетов"""
-
     def __init__(self, repository_url, test_mode=False):
-        self.repository_url = repository_url.rstrip('/')
+        self.repository_url = repository_url
         self.test_mode = test_mode
-        self.base_url = self._get_base_url()
-
-    def _get_base_url(self):
-        """Определяет базовый URL для API npm репозитория"""
-        if self.test_mode:
-            return self.repository_url
-
-        if self.repository_url == 'https://registry.npmjs.org':
-            return 'https://registry.npmjs.org'
-        elif 'registry.npmjs.org' in self.repository_url:
-            return self.repository_url
-        else:
-            return urljoin(self.repository_url, '/')
 
     def get_package_dependencies(self, package_name, version=None):
-        """
-        Получает прямые зависимости пакета
-        """
         if self.test_mode:
-            from test_repository import TestRepository
-            test_repo = TestRepository(self.repository_url)
-            return test_repo.get_package_dependencies(package_name, version)
+            return self._get_test_dependencies(package_name)
 
         try:
-            package_data = self._fetch_package_data(package_name)
-            target_version = self._resolve_version(package_data, version)
-            dependencies = self._extract_dependencies(package_data, target_version)
+            url = f"https://registry.npmjs.org/{package_name}"
+
+            with urllib.request.urlopen(url, timeout=15) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+            if version and version in data.get('versions', {}):
+                target_version = version
+            else:
+                target_version = data.get('dist-tags', {}).get('latest',
+                                                               sorted(data.get('versions', {}).keys())[-1])
+
+            version_data = data['versions'][target_version]
+
+            dependencies = {}
+            dependencies.update(version_data.get('dependencies', {}))
+            dependencies.update(version_data.get('devDependencies', {}))
+            dependencies.update(version_data.get('peerDependencies', {}))
+
             return dependencies
 
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                raise PackageNotFoundError(f"Пакет '{package_name}' не найден в репозитории")
-            else:
-                raise NetworkError(f"HTTP ошибка при получении данных: {e.code}")
-        except urllib.error.URLError as e:
-            raise NetworkError(f"Ошибка подключения к репозиторию: {e.reason}")
-        except (KeyError, ValueError) as e:
-            raise PackageDataError(f"Ошибка разбора данных пакета: {e}")
-
-    def _fetch_package_data(self, package_name):
-        """Получает данные о пакете из npm registry"""
-        url = f"{self.base_url}/{package_name}"
-
-        try:
-            with urllib.request.urlopen(url) as response:
-                if response.status == 200:
-                    data = response.read().decode('utf-8')
-                    return json.loads(data)
-                else:
-                    raise NetworkError(f"Ошибка HTTP {response.status}")
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
                 raise PackageNotFoundError(f"Пакет '{package_name}' не найден")
-            raise
+            raise NetworkError(f"HTTP ошибка {e.code}: {e.reason}")
+        except urllib.error.URLError as e:
+            raise NetworkError(f"Ошибка сети: {e.reason}")
+        except Exception as e:
+            raise PackageDataError(f"Ошибка обработки данных: {e}")
 
-    def _resolve_version(self, package_data, version_spec=None):
-        """Определяет конкретную версию пакета"""
-        versions = package_data.get('versions', {})
+    def _get_test_dependencies(self, package_name):
+        try:
+            with open(self.repository_url, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-        if not versions:
-            raise PackageDataError("Пакет не имеет версий")
-
-        if version_spec:
-            if version_spec in versions:
-                return version_spec
+            if package_name in data:
+                return data[package_name].get('dependencies', {})
             else:
-                matching_version = self._find_matching_version(versions, version_spec)
-                if not matching_version:
-                    raise PackageDataError(
-                        f"Версия '{version_spec}' не найдена для пакета '{package_data.get('name', 'unknown')}'. Доступные версии: {', '.join(list(versions.keys())[:5])}...")
-                return matching_version
-        else:
-            dist_tags = package_data.get('dist-tags', {})
-            latest_version = dist_tags.get('latest')
-            if latest_version and latest_version in versions:
-                return latest_version
-            else:
-                return sorted(versions.keys(), key=self._parse_version)[-1]
+                raise PackageNotFoundError(f"Пакет '{package_name}' не найден в тестовом репозитории")
 
-    def _find_matching_version(self, versions, version_spec):
-        """Находит версию, соответствующую спецификации"""
-        available_versions = list(versions.keys())
-
-        if version_spec in available_versions:
-            return version_spec
-
-        for version in available_versions:
-            if version.startswith(version_spec):
-                return version
-
-        return None
-
-    def _parse_version(self, version_str):
-        """Парсит версию для сравнения"""
-        version_str = version_str.strip('v')
-        parts = version_str.split('.')
-
-        numeric_parts = []
-        for part in parts:
-            numeric_part = ''
-            for char in part:
-                if char.isdigit():
-                    numeric_part += char
-                else:
-                    break
-            numeric_parts.append(int(numeric_part) if numeric_part else 0)
-
-        while len(numeric_parts) < 3:
-            numeric_parts.append(0)
-
-        return numeric_parts
-
-    def _extract_dependencies(self, package_data, version):
-        """Извлекает зависимости для конкретной версии"""
-        version_data = package_data['versions'][version]
-
-        dependencies = {}
-
-        deps = version_data.get('dependencies', {})
-        dependencies.update(deps)
-
-        dev_deps = version_data.get('devDependencies', {})
-        dependencies.update(dev_deps)
-
-        peer_deps = version_data.get('peerDependencies', {})
-        dependencies.update(peer_deps)
-
-        return dependencies
+        except FileNotFoundError:
+            raise PackageNotFoundError(f"Файл не найден: {self.repository_url}")
+        except json.JSONDecodeError:
+            raise PackageDataError("Ошибка чтения JSON файла")
 
     def filter_dependencies(self, dependencies, filter_substring):
-        """Фильтрует зависимости по подстроке"""
         if not filter_substring:
             return dependencies
 

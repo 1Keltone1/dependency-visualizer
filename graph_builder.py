@@ -1,170 +1,127 @@
 from collections import deque
-from errors import CyclicDependencyError, GraphError
+from errors import CyclicDependencyError
 
 
 class DependencyGraphBuilder:
-    """Построитель графа зависимостей с использованием DFS без рекурсии"""
-
     def __init__(self, data_collector):
         self.data_collector = data_collector
-        self.visited = set()
-        self.graph = {}
-        self.depth_limit = 10
 
-    def build_dependency_graph(self, root_package, root_version=None, filter_substring=None, max_depth=10):
-        """
-        Строит граф зависимостей с использованием DFS без рекурсии
-        """
-        self.depth_limit = max_depth
-        self.visited = set()
-        self.graph = {}
+    def build_dependency_graph(self, root_package, root_version=None, filter_substring=None, max_depth=3):
+        if max_depth is None:
+            max_depth = 3
 
-        stack = [(root_package, root_version, 0)]  # (package, version, depth)
+        visited = set()
+        graph = {}
+        stack = [(root_package, root_version, 0)]
+
+        print(f"📏 Максимальная глубина обхода: {max_depth}")
 
         while stack:
             current_package, current_version, depth = stack.pop()
 
-            if depth > self.depth_limit:
+            if depth >= max_depth:
                 continue
 
             package_key = f"{current_package}@{current_version}" if current_version else current_package
 
-            if package_key in self.visited:
+            if package_key in visited:
                 continue
 
-            self.visited.add(package_key)
+            visited.add(package_key)
 
             try:
-                dependencies = self.data_collector.get_package_dependencies(
-                    current_package, current_version
-                )
+                dependencies = self.data_collector.get_package_dependencies(current_package, current_version)
 
                 if filter_substring:
-                    dependencies = self.data_collector.filter_dependencies(
-                        dependencies, filter_substring
-                    )
+                    dependencies = self.data_collector.filter_dependencies(dependencies, filter_substring)
 
-                self.graph[package_key] = dependencies
+                graph[package_key] = dependencies
 
                 for dep_package, dep_version in dependencies.items():
-                    dep_key = f"{dep_package}@{dep_version}"
-
-                    if self._has_cycle(package_key, dep_package):
-                        raise CyclicDependencyError(
-                            f"Обнаружена циклическая зависимость: {package_key} -> {dep_package}"
-                        )
-
-                    stack.append((dep_package, dep_version, depth + 1))
+                    if "ERROR" not in dep_package:
+                        stack.append((dep_package, dep_version, depth + 1))
 
             except Exception as e:
-                self.graph[package_key] = {"ERROR": str(e)}
-                continue
+                graph[package_key] = {"ERROR": str(e)}
 
-        return self.graph
+        return graph
 
     def find_reverse_dependencies(self, target_package, root_package, root_version=None, filter_substring=None,
-                                  max_depth=10):
-        """
-        Находит обратные зависимости для заданного пакета
-        """
-        full_graph = self.build_dependency_graph(
-            root_package, root_version, filter_substring, max_depth
-        )
+                                  max_depth=3):
+        if max_depth is None:
+            max_depth = 3
+
+        graph = self.build_dependency_graph(root_package, root_version, filter_substring, max_depth)
 
         reverse_deps = []
+        target_name = target_package.split('@')[0]
 
-        for package, dependencies in full_graph.items():
-            for dep_package in dependencies.keys():
-                dep_name = dep_package.split('@')[0] if '@' in dep_package else dep_package
-                if dep_name == target_package:
-                    reverse_deps.append(package)
-                    break
+        for package, dependencies in graph.items():
+            for dep in dependencies:
+                if "ERROR" not in dep:
+                    dep_name = dep.split('@')[0]
+                    if dep_name == target_name:
+                        reverse_deps.append(package)
+                        break
 
         return reverse_deps
 
-    def _has_cycle(self, current_package, next_package):
-        """Проверяет наличие циклических зависимостей"""
-        for package, deps in self.graph.items():
-            if next_package in deps and current_package in self._get_all_dependencies(package):
-                return True
-        return False
+    def get_graph_statistics(self, graph):
+        if not graph:
+            return {
+                "total_packages": 0,
+                "total_dependencies": 0,
+                "max_depth": 0,
+                "has_cycles": False
+            }
 
-    def _get_all_dependencies(self, package):
-        """Рекурсивно получает все зависимости пакета"""
-        all_deps = set()
-        stack = [package]
-
-        while stack:
-            current = stack.pop()
-            if current in self.graph:
-                for dep in self.graph[current]:
-                    if dep not in all_deps:
-                        all_deps.add(dep)
-                        stack.append(dep)
-
-        return all_deps
-
-    def get_graph_statistics(self):
-        """Возвращает статистику графа"""
-        total_packages = len(self.graph)
-        total_dependencies = sum(len(deps) for deps in self.graph.values())
-
-        return {
-            "total_packages": total_packages,
-            "total_dependencies": total_dependencies,
-            "max_depth": self._calculate_max_depth(),
-            "has_cycles": self._check_for_cycles()
-        }
-
-    def _calculate_max_depth(self):
-        """Вычисляет максимальную глубину графа"""
-        if not self.graph:
-            return 0
+        total_deps = sum(1 for deps in graph.values() for dep in deps if "ERROR" not in dep)
 
         depths = {}
-        root = next(iter(self.graph.keys()))
-        depths[root] = 0
         max_depth = 0
 
-        stack = [root]
-        while stack:
-            current = stack.pop()
-            current_depth = depths[current]
-            max_depth = max(max_depth, current_depth)
+        if graph:
+            root = next(iter(graph.keys()))
+            depths[root] = 0
 
-            if current in self.graph:
-                for dep in self.graph[current]:
-                    if dep not in depths:
-                        depths[dep] = current_depth + 1
-                        stack.append(dep)
+            stack = [(root, 0)]
+            while stack:
+                node, depth = stack.pop()
+                max_depth = max(max_depth, depth)
 
-        return max_depth
+                if node in graph:
+                    for dep in graph[node]:
+                        if "ERROR" not in dep and dep not in depths:
+                            depths[dep] = depth + 1
+                            stack.append((dep, depth + 1))
 
-    def _check_for_cycles(self):
-        """Проверяет наличие циклов в графе"""
-        visited = set()
-        recursion_stack = set()
+        return {
+            "total_packages": len(graph),
+            "total_dependencies": total_deps,
+            "max_depth": max_depth,
+            "has_cycles": self._check_cycles(graph)
+        }
 
-        def has_cycle_util(node):
-            if node not in self.graph:
-                return False
-
+    def _check_cycles(self, graph):
+        def has_cycle(node, visited, recursion_stack):
             visited.add(node)
             recursion_stack.add(node)
 
-            for neighbor in self.graph[node]:
-                if neighbor not in visited:
-                    if has_cycle_util(neighbor):
-                        return True
-                elif neighbor in recursion_stack:
-                    return True
+            if node in graph:
+                for neighbor in graph[node]:
+                    if "ERROR" not in neighbor:
+                        if neighbor not in visited:
+                            if has_cycle(neighbor, visited, recursion_stack):
+                                return True
+                        elif neighbor in recursion_stack:
+                            return True
 
             recursion_stack.remove(node)
             return False
 
-        for node in self.graph:
+        visited = set()
+        for node in graph:
             if node not in visited:
-                if has_cycle_util(node):
+                if has_cycle(node, visited, set()):
                     return True
-
         return False
