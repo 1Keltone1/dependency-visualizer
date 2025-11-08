@@ -7,45 +7,24 @@
   },
   "B": {
     "dependencies": {
-      "D": "^1.0.0",
-      "E": "^2.0.0"
+      "D": "^1.0.0"
     }
   },
   "C": {
     "dependencies": {
       "D": "^1.0.0",
-      "F": "^3.0.0"
+      "E": "^3.0.0"
     }
   },
   "D": {
     "dependencies": {
-      "G": "^1.0.0"
+      "F": "^1.0.0"
     }
   },
   "E": {
     "dependencies": {}
   },
   "F": {
-    "dependencies": {
-      "G": "^1.0.0"
-    }
-  },
-  "G": {
     "dependencies": {}
-  },
-  "X": {
-    "dependencies": {
-      "Y": "^1.0.0"
-    }
-  },
-  "Y": {
-    "dependencies": {
-      "Z": "^1.0.0"
-    }
-  },
-  "Z": {
-    "dependencies": {
-      "X": "^1.0.0"
-    }
   }
 }

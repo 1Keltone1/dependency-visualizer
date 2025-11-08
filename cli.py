@@ -1,7 +1,6 @@
 import argparse
-import sys
 from config import Config
-from errors import ValidationError, ConfigError
+from errors import ConfigError
 
 
 class CommandLineInterface:
@@ -9,111 +8,56 @@ class CommandLineInterface:
         self.parser = self._setup_parser()
 
     def _setup_parser(self):
-        """Настройка парсера аргументов командной строки"""
         parser = argparse.ArgumentParser(
-            description='Инструмент визуализации графа зависимостей пакетов',
-            formatter_class=argparse.RawDescriptionHelpFormatter,
+            description='Визуализатор графа зависимостей npm пакетов',
             epilog="""
 Примеры использования:
-  # Основной режим - построение графа зависимостей
-  python main.py --package react --repo-url https://registry.npmjs.org --version 18.2.0 --output graph.svg
+  # Тестовый режим
+  python main.py --package A --repo-url test_graph.json --test-mode --output test.puml
 
-  # Режим обратных зависимостей
-  python main.py --package D --repo-url test_graph.json --test-mode --reverse-deps --root-package A
+  # Реальный пакет
+  python main.py --package react --repo-url https://registry.npmjs.org --output deps.svg
 
-  # Тестовый режим с фильтрацией
-  python main.py --package A --repo-url test_graph.json --test-mode --output deps.svg --filter "B"
+  # С ограничением глубины
+  python main.py --package express --repo-url https://registry.npmjs.org --output express.puml --max-depth 2
+
+  # Обратные зависимости
+  python main.py --package chalk --repo-url https://registry.npmjs.org --reverse-deps --root-package express --output reverse.txt
+
+  # С фильтрацией
+  python main.py --package webpack --repo-url https://registry.npmjs.org --filter "loader" --output filtered.puml
             """
         )
 
-        # Обязательные параметры
-        parser.add_argument(
-            '--package',
-            '--package-name',
-            dest='package_name',
-            required=True,
-            help='Имя анализируемого пакета (обязательно)'
-        )
-
-        parser.add_argument(
-            '--repo-url',
-            '--repository-url',
-            dest='repository_url',
-            required=True,
-            help='URL репозитория или путь к файлу тестового репозитория (обязательно)'
-        )
-
-        # Опциональные параметры
-        parser.add_argument(
-            '--test-mode',
-            '--test-repo-mode',
-            dest='test_repo_mode',
-            action='store_true',
-            default=False,
-            help='Режим работы с тестовым репозиторием (по умолчанию: False)'
-        )
-
-        parser.add_argument(
-            '--version',
-            '--package-version',
-            dest='package_version',
-            help='Версия пакета'
-        )
-
-        parser.add_argument(
-            '--output',
-            '--output-filename',
-            dest='output_filename',
-            default='dependency_graph.svg',
-            help='Имя сгенерированного файла с изображением графа (по умолчанию: dependency_graph.svg)'
-        )
-
-        parser.add_argument(
-            '--filter',
-            '--filter-substring',
-            dest='filter_substring',
-            help='Подстрока для фильтрации пакетов'
-        )
-
-        # Параметры для обратных зависимостей
-        parser.add_argument(
-            '--reverse-deps',
-            '--reverse-dependencies',
-            dest='reverse_dependencies',
-            action='store_true',
-            default=False,
-            help='Режим поиска обратных зависимостей'
-        )
-
-        parser.add_argument(
-            '--root-package',
-            dest='root_package',
-            help='Корневой пакет для начала обхода при поиске обратных зависимостей'
-        )
+        parser.add_argument('--package', required=True, help='Имя пакета')
+        parser.add_argument('--repo-url', required=True, help='URL репозитория или путь к файлу')
+        parser.add_argument('--test-mode', action='store_true', help='Тестовый режим')
+        parser.add_argument('--version', help='Версия пакета')
+        parser.add_argument('--output', default='dependencies.svg', help='Выходной файл')
+        parser.add_argument('--filter', help='Фильтр пакетов')
+        parser.add_argument('--reverse-deps', action='store_true', help='Обратные зависимости')
+        parser.add_argument('--root-package', help='Корневой пакет для обратных зависимостей')
+        parser.add_argument('--max-depth', type=int, default=3, help='Максимальная глубина обхода')
 
         return parser
 
     def parse_arguments(self):
-        """Разбор аргументов командной строки и создание конфигурации"""
         try:
             args = self.parser.parse_args()
 
             config = Config()
-            config.package_name = args.package_name
-            config.repository_url = args.repository_url
-            config.test_repo_mode = args.test_repo_mode
-            config.package_version = args.package_version
-            config.output_filename = args.output_filename
-            config.filter_substring = args.filter_substring
-            config.reverse_dependencies = args.reverse_dependencies
+            config.package_name = args.package
+            config.repository_url = args.repo_url
+            config.test_repo_mode = args.test_mode
+            config.package_version = args.version
+            config.output_filename = args.output
+            config.filter_substring = args.filter
+            config.reverse_dependencies = args.reverse_deps
             config.root_package = args.root_package
+            config.max_depth = args.max_depth
 
-            # Валидация конфигурации
             config.validate()
-
             return config
 
-        except argparse.ArgumentError as e:
-            raise ConfigError(f"Ошибка в аргументах командной строки: {e}")
         except SystemExit:
-            raise ConfigError("Прервано пользователем")
+            raise ConfigError("Прервано")
