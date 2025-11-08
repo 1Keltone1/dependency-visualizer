@@ -151,7 +151,7 @@ class SimpleGraphVisualizer:
                 break
 
             p_name = package.split('@')[0] if '@' in package else package
-            lines.append(f"📦 {p_name}")
+            lines.append(f" {p_name}")
 
             if deps and "ERROR" not in next(iter(deps.keys()), ""):
                 for j, (dep, version) in enumerate(deps.items()):
@@ -161,7 +161,7 @@ class SimpleGraphVisualizer:
                     d_name = dep.split('@')[0] if '@' in dep else dep
                     lines.append(f"    └── {d_name}: {version}")
             elif "ERROR" in deps:
-                lines.append(f"    └── ❌ {deps['ERROR']}")
+                lines.append(f"    └──  {deps['ERROR']}")
             else:
                 lines.append("    └── (нет зависимостей)")
             lines.append("")

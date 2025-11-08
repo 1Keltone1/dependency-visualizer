@@ -14,7 +14,7 @@ class DependencyGraphBuilder:
         graph = {}
         stack = [(root_package, root_version, 0)]
 
-        print(f"📏 Максимальная глубина обхода: {max_depth}")
+        print(f" Максимальная глубина обхода: {max_depth}")
 
         while stack:
             current_package, current_version, depth = stack.pop()

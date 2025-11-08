@@ -38,7 +38,7 @@ class Config:
             if not has_allowed_extension:
                 if '.' not in self.output_filename:
                     self.output_filename += '.svg'
-                    print(f"💡 Расширение не указано, используется: {self.output_filename}")
+                    print(f" Расширение не указано, используется: {self.output_filename}")
                 else:
                     errors.append(f"Разрешены расширения: {', '.join(allowed)}")
 
